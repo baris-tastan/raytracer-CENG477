@@ -33,7 +33,9 @@ Vec3f cross(const Vec3f& a, const Vec3f& b) {
         a.x * b.y - a.y * b.x
     };
 }
-
+float determinant(float a,float b,float c,float d,float e,float f,float g,float h,float i){
+    return a*(e*i-h*f) + b*(g*f-d*i) + c*(d*h-e*g);
+}
 class Ray {
     Vec3f origin, direction;
 
@@ -81,15 +83,31 @@ class Ray {
             float t1 =(-B - sqrt(discriminant)) / 2*A;
             float t2 =(-B + sqrt(discriminant)) / 2*A;
             hit.t = t1 < t2 ? t1 : t2;
-            hit.material=scene.materials[sphere.material_id];
+            hit.material=scene.materials[sphere.material_id]; //burada key gibi veriyoruz sanırım o yüzden +1 yok
             hit.intersection_point = this->origin + d*hit.t ;
             hit.normal = hit.intersection_point - center;
         }
         return hit;
     }
 
-    HitRecord intersectionTriangle(Triangle const&triange){
-
+    HitRecord intersectionTriangle(Triangle const&triangle, const Scene& scene){
+        HitRecord hit;
+        hit.is_intersected = false;
+        Vec3f a_b = scene.vertex_data[triangle.indices.v0_id -1] - scene.vertex_data[triangle.indices.v1_id -1] ;
+        Vec3f a_c = scene.vertex_data[triangle.indices.v0_id -1] - scene.vertex_data[triangle.indices.v2_id -1] ;
+        Vec3f a_o = scene.vertex_data[triangle.indices.v0_id] - this->origin ;
+        float det_A = determinant(a_b.x,a_b.y,a_b.z,a_c.x,a_c.y,a_c.z,this->direction.x,this->direction.y,this->direction.z);
+        float beta = determinant(a_o.x,a_o.y,a_o.z,a_c.x,a_c.y,a_c.z,this->direction.x,this->direction.y,this->direction.z) / det_A ;
+        float gama = determinant(a_b.x,a_b.y,a_b.z,a_o.x,a_o.y,a_o.z,this->direction.x,this->direction.y,this->direction.z) / det_A ;
+        float t = determinant(a_b.x,a_b.y,a_b.z,a_c.x,a_c.y,a_c.z,a_o.x,a_o.y,a_o.z) / det_A ;
+        if (beta+gama <= 1 && 0 <= beta && 0 <= gama && t>0){ //tmin<=t<=tmax ???
+            hit.is_intersected = true;
+            hit.material = scene.materials[triangle.material_id];
+            hit.t = t;
+            hit.intersection_point = this->origin + (this->direction)*(hit.t) ;
+            hit.normal = cross(scene.vertex_data[triangle.indices.v2_id -1] - scene.vertex_data[triangle.indices.v1_id -1] ,a_b);
+        }
+        return hit;
     }
 
     HitRecord intersectionMesh(Mesh const&mesh){
