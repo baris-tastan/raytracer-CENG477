@@ -127,6 +127,40 @@ class Ray {
         return hit;
     }
 
+    HitRecord find_closest_hit(Scene& scene){
+        HitRecord hit;
+        HitRecord current_hit;
+        hit.is_intersected = false;
+        hit.t=0;
+        for(int i=0; i< scene.spheres.size() ; i++){
+            current_hit =intersectionSphere(scene.spheres[i],scene);
+            if(current_hit.is_intersected==true) {
+                if(current_hit.t < hit.t) {hit = current_hit; }
+            } 
+        }
+
+        for(int i=0; i< scene.triangles.size() ; i++){
+            current_hit =intersectionTriangle(scene.triangles[i],scene);
+            if(current_hit.is_intersected==true) {
+                if(current_hit.t < hit.t) {hit = current_hit; }
+            } 
+        }
+
+       for(int i=0; i< scene.meshes.size() ; i++){
+            current_hit =intersectionMesh(scene.meshes[i],scene);
+            if(current_hit.is_intersected==true) {
+                if(current_hit.t < hit.t) {hit = current_hit; }
+            } 
+        }
+
+        return hit;
+    }
+
+    Vec3i compute_color(int depth, Scene& scene){
+
+    }
+}
+
     //compute_color(Ray r, int depth) içinde,, o rayi scenedeki tüm objelerle kesiştirmeye çalışacağız 
     //(all spheres loop, all triangles loop,...) hit record tutacağız bir yandan ve bu kesişimin (hitrecord.is_intersected==true) ise
     // ve bir önceki kesişimden daha yakınsa(Hitrecord.t < current_min_t) hit recordu güncelle.
