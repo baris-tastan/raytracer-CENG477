@@ -36,6 +36,16 @@ Vec3f cross(const Vec3f& a, const Vec3f& b) {
 float determinant(float a,float b,float c,float d,float e,float f,float g,float h,float i){
     return a*(e*i-h*f) + b*(g*f-d*i) + c*(d*h-e*g);
 }
+
+
+struct HitRecord {
+        bool is_intersected;
+        float t;
+        Vec3f intersection_point;
+        Material material;
+        Vec3f normal;
+};
+
 class Ray {
     Vec3f origin, direction;
 
@@ -60,13 +70,7 @@ class Ray {
         Vec3f s = q + u*s_u - v*s_v ;
         return Ray(camera.position, normalize(s - camera.position));
     }
-    struct HitRecord {
-        bool is_intersected;
-        float t;
-        Vec3f intersection_point;
-        Material material;
-        Vec3f normal;
-    };
+
 
     HitRecord intersectionSphere(Sphere const &sphere, const Scene& scene) {
         HitRecord hit;
@@ -157,9 +161,21 @@ class Ray {
     }
 
     Vec3i compute_color(int depth, Scene& scene){
+        if(depth > scene.max_recursion_depth){
+            return {0,0,0};
+        }
 
+        if(this->find_closest_hit(scene).is_intersected == true){
+            return applyShading(*this,this->find_closest_hit(scene));
+        }
+
+        else if(depth==0) {
+            return scene.background_color;
+        }
+
+        else return {0,0,0};
     }
-}
+};
 
     //compute_color(Ray r, int depth) içinde,, o rayi scenedeki tüm objelerle kesiştirmeye çalışacağız 
     //(all spheres loop, all triangles loop,...) hit record tutacağız bir yandan ve bu kesişimin (hitrecord.is_intersected==true) ise
@@ -170,7 +186,11 @@ class Ray {
 
     //mainin içinde, cameradan tüm pixelleri dön, cameratopixel'i çağır, rayi elde et. Depthi 0 vererek compute_color'u her ray için çağır.
     //Compute color bir renk dönecek, onu da 0,255 arasına sıkıştır. SON.
-};
+
+
+Vec3i applyShading(Ray ray, HitRecord hit){
+
+}
 
 int main(int argc, char* argv[])
 {
