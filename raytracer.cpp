@@ -110,8 +110,21 @@ class Ray {
         return hit;
     }
 
-    HitRecord intersectionMesh(Mesh const&mesh){
+    HitRecord intersectionMesh(Mesh const&mesh, const Scene& scene){
+        HitRecord hit;
+        HitRecord current_hit;
+        hit.is_intersected = false;
+        hit.t=0;
+        Triangle mesh_triangle;
 
+        for(int i = 0; i<mesh.faces.size(); i++){
+            mesh_triangle = {mesh.material_id, mesh.faces[i]};
+            current_hit = intersectionTriangle(mesh_triangle,scene);
+            if(current_hit.is_intersected==true) {
+                if(current_hit.t < hit.t) {hit = current_hit; }
+            } 
+        }
+        return hit;
     }
 
     //compute_color(Ray r, int depth) içinde,, o rayi scenedeki tüm objelerle kesiştirmeye çalışacağız 
