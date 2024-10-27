@@ -66,8 +66,26 @@ class Ray {
         Vec3f normal;
     };
 
-    HitRecord intersectionSphere(Sphere const &sphere) {
-
+    HitRecord intersectionSphere(Sphere const &sphere, const Scene& scene) {
+        HitRecord hit;
+        hit.is_intersected = false;
+        Vec3f center = scene.vertex_data[sphere.center_vertex_id-1];  //the first vertex_id is 1
+        Vec3f o_c = this->origin-center;
+        Vec3f d = this->direction;
+        float A= dot(d,d);
+        float B = dot(d,o_c)*2;
+        float C = dot(o_c,o_c) - (sphere.radius)*(sphere.radius);
+        float discriminant = (B*B - 4*A*C);
+        if(discriminant>=0) {
+            hit.is_intersected = true;
+            float t1 =(-B - sqrt(discriminant)) / 2*A;
+            float t2 =(-B + sqrt(discriminant)) / 2*A;
+            hit.t = t1 < t2 ? t1 : t2;
+            hit.material=scene.materials[sphere.material_id];
+            hit.intersection_point = this->origin + d*hit.t ;
+            hit.normal = hit.intersection_point - center;
+        }
+        return hit;
     }
 
     HitRecord intersectionTriangle(Triangle const&triange){
@@ -79,10 +97,11 @@ class Ray {
     }
 
     //compute_color(Ray r, int depth) içinde,, o rayi scenedeki tüm objelerle kesiştirmeye çalışacağız 
-    //(all spheres loop, all triangles loop,...) hit record tutacağız bir yandan ve bu kesişimin hitrecord.is_intersected==true ise
+    //(all spheres loop, all triangles loop,...) hit record tutacağız bir yandan ve bu kesişimin (hitrecord.is_intersected==true) ise
     // ve bir önceki kesişimden daha yakınsa(Hitrecord.t < current_min_t) hit recordu güncelle.
     //tüm objeleri döndüğünde elinde kalan hitrecord en yakın hit olmuş olacak.
-    //daha sonra bu ray'i ve hitrecordunu shading fonskiyonuna gönder. shading depthi artırarar compute_color'u geri çağırabilir.
+    //daha sonra bu ray'i ve hitrecordunu shading fonskiyonuna gönder. shading fonksiyonu recursive, depthi artırarar compute_color'u geri çağırabilir.
+
 
     //mainin içinde, cameradan tüm pixelleri dön, cameratopixel'i çağır, rayi elde et. Depthi 0 vererek compute_color'u her ray için çağır.
     //Compute color bir renk dönecek, onu da 0,255 arasına sıkıştır. SON.
