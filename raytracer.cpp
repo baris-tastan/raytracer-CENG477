@@ -54,7 +54,7 @@ class Ray {
     //we can use this as: Ray ray = Ray::cameraToPixel(camera, pixel_x, pixel_y);
     //The cameraToPixel method is static because it creates a Ray without needing an instance of the Ray class. 
     //It uses the camera's parameters and pixel coordinates to calculate the origin and direction of the ray.
-
+    Vec3f getDirection() const { return direction; }
     static Ray cameraToPixel(const Camera &camera, int pixel_x, int pixel_y) { //constların yeri hkk bak???
         float l = camera.near_plane.x ;
         float r = camera.near_plane.y;
@@ -160,28 +160,8 @@ class Ray {
         return hit;
     }
 
-    Vec3f compute_color(int depth, Scene& scene){ //en son mainin içinde Vec3i'ye çevirip clample
-        if(depth > scene.max_recursion_depth){
-            return {0,0,0};
-        }
-
-        if(this->find_closest_hit(scene).is_intersected == true){
-            return applyShading(*this,this->find_closest_hit(scene));
-        }
-
-        else if(depth==0) { //Vec3i Vec3f'ye dönüştürüldü. Umarım loss olmamıştır.
-            Vec3f background;
-            background.x = scene.background_color.x;
-            background.y = scene.background_color.y;
-            background.z = scene.background_color.z;
-            return {background};
-        }
-
-        else return {0,0,0};
-    }
-
+ 
 };
-
 
 bool inShadow(Vec3f intersection_point, PointLight I, const Scene& scene){
         Ray ray= Ray(I.position, intersection_point - I.position); //point lighttan intersection pointa giden ray
@@ -207,7 +187,56 @@ bool inShadow(Vec3f intersection_point, PointLight I, const Scene& scene){
                 return true;
             } 
         }
+        return false;
+}
+
+Vec3f compute_color(Ray ray,int depth, Scene& scene){ //en son mainin içinde Vec3i'ye çevirip clample
+        if(depth > scene.max_recursion_depth){
+            return {0,0,0};
+        }
+
+        if(ray.find_closest_hit(scene).is_intersected == true){
+            return applyShading(ray,depth,ray.find_closest_hit(scene));
+        }
+
+        else if(depth==0) { //Vec3i Vec3f'ye dönüştürüldü. Umarım loss olmamıştır.
+            Vec3f background;
+            background.x = scene.background_color.x;
+            background.y = scene.background_color.y;
+            background.z = scene.background_color.z;
+            return {background};
+        }
+
+        else return {0,0,0};
+}
+
+Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene){
+    Vec3f color= {0,0,0};
+    //ambient contribution
+    color.x = (scene.ambient_light).x * (hit.material.ambient).x;
+    color.y = (scene.ambient_light).y * (hit.material.ambient).y;
+    color.z = (scene.ambient_light).z * (hit.material.ambient).z;
+    
+
+    //Doing the above is mathematically correct, but if you then try to raytrace from that ray, you may hit the same object you are reflecting off.
+    // One way to fight that problem is to push the ray positin a small amount away from the surface to make sure it misses it. 
+    //You can do that for example like this: ReflectRayLocation = ReflectRayLocation + ReflectRayDirection * 0.01
+
+    if(hit.material.is_mirror){ //reflectance bak doğru hesaplanmış mı diye
+        Ray reflection_ray = Ray(hit.intersection_point, ray.getDirection() - hit.normal*(2*dot(ray.getDirection(),hit.normal)));
+        Vec3f computed_color = compute_color(reflection_ray, depth+1,scene);
+        color.x += computed_color.x * hit.material.mirror.x ;
+        color.y += computed_color.y * hit.material.mirror.y ;
+        color.z += computed_color.z * hit.material.mirror.z ;
     }
+
+    for(int i=0; i<scene.point_lights.size(); i++){
+        if(!inShadow(hit.intersection_point,scene.point_lights[i],scene)){
+            //diffuse and specular contribution
+        }
+    }
+}
+
 
     //compute_color(Ray r, int depth) içinde,, o rayi scenedeki tüm objelerle kesiştirmeye çalışacağız 
     //(all spheres loop, all triangles loop,...) hit record tutacağız bir yandan ve bu kesişimin (hitrecord.is_intersected==true) ise
@@ -221,9 +250,7 @@ bool inShadow(Vec3f intersection_point, PointLight I, const Scene& scene){
 
 
 
-Vec3f applyShading(Ray ray, HitRecord hit){
 
-}
 
 
 
