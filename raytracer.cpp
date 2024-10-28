@@ -48,14 +48,14 @@ struct HitRecord {
 
 class Ray {
     Vec3f origin, direction;
-
-    Ray(const Vec3f& orig, const Vec3f& dir) : origin(orig), direction(normalize(dir)) {}
+    public: 
+        Ray(const Vec3f& orig, const Vec3f& dir) : origin(orig), direction(normalize(dir)) {}
 
     //we can use this as: Ray ray = Ray::cameraToPixel(camera, pixel_x, pixel_y);
     //The cameraToPixel method is static because it creates a Ray without needing an instance of the Ray class. 
     //It uses the camera's parameters and pixel coordinates to calculate the origin and direction of the ray.
 
-    static Ray cameraToPixel(const Camera &camera, int pixel_x, int pixel_y) {
+    static Ray cameraToPixel(const Camera &camera, int pixel_x, int pixel_y) { //constların yeri hkk bak???
         float l = camera.near_plane.x ;
         float r = camera.near_plane.y;
         float b =camera.near_plane.z;
@@ -160,7 +160,7 @@ class Ray {
         return hit;
     }
 
-    Vec3i compute_color(int depth, Scene& scene){
+    Vec3f compute_color(int depth, Scene& scene){ //en son mainin içinde Vec3i'ye çevirip clample
         if(depth > scene.max_recursion_depth){
             return {0,0,0};
         }
@@ -169,13 +169,45 @@ class Ray {
             return applyShading(*this,this->find_closest_hit(scene));
         }
 
-        else if(depth==0) {
-            return scene.background_color;
+        else if(depth==0) { //Vec3i Vec3f'ye dönüştürüldü. Umarım loss olmamıştır.
+            Vec3f background;
+            background.x = scene.background_color.x;
+            background.y = scene.background_color.y;
+            background.z = scene.background_color.z;
+            return {background};
         }
 
         else return {0,0,0};
     }
+
 };
+
+
+bool inShadow(Vec3f intersection_point, PointLight I, const Scene& scene){
+        Ray ray= Ray(I.position, intersection_point - I.position); //point lighttan intersection pointa giden ray
+        HitRecord hit;
+        hit.is_intersected = false;
+        for(int i=0; i< scene.spheres.size() ; i++){
+            hit=ray.intersectionSphere(scene.spheres[i],scene);
+            if(hit.is_intersected==true) {
+                return true;
+            } 
+        }
+
+        for(int i=0; i< scene.triangles.size() ; i++){
+            hit =ray.intersectionTriangle(scene.triangles[i],scene);
+            if(hit.is_intersected==true) {
+                return true;
+            } 
+        }
+
+       for(int i=0; i< scene.meshes.size() ; i++){
+            hit =ray.intersectionMesh(scene.meshes[i],scene);
+            if(hit.is_intersected==true) {
+                return true;
+            } 
+        }
+    }
 
     //compute_color(Ray r, int depth) içinde,, o rayi scenedeki tüm objelerle kesiştirmeye çalışacağız 
     //(all spheres loop, all triangles loop,...) hit record tutacağız bir yandan ve bu kesişimin (hitrecord.is_intersected==true) ise
@@ -188,9 +220,12 @@ class Ray {
     //Compute color bir renk dönecek, onu da 0,255 arasına sıkıştır. SON.
 
 
-Vec3i applyShading(Ray ray, HitRecord hit){
+
+Vec3f applyShading(Ray ray, HitRecord hit){
 
 }
+
+
 
 int main(int argc, char* argv[])
 {
