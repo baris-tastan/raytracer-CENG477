@@ -1,6 +1,7 @@
 #include <iostream>
 #include "parser.h"
 #include "ppm.h"
+#include <cmath> sqrt, max
 using namespace parser;
 
 typedef unsigned char RGB[3];
@@ -22,7 +23,7 @@ float dot(const Vec3f& a, const Vec3f& b) {
 }
 
 Vec3f normalize(const Vec3f& v) {
-    float len = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    float len = sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
     return {v.x / len, v.y / len, v.z / len};
 }
 
@@ -75,6 +76,7 @@ class Ray {
     HitRecord intersectionSphere(Sphere const &sphere, const Scene& scene) {
         HitRecord hit;
         hit.is_intersected = false;
+        hit.t=std::numeric_limits<float>::infinity();
         Vec3f center = scene.vertex_data[sphere.center_vertex_id-1];  //the first vertex_id is 1
         Vec3f o_c = this->origin-center;
         Vec3f d = this->direction;
@@ -84,10 +86,10 @@ class Ray {
         float discriminant = (B*B - 4*A*C);
         if(discriminant>=0) {
             hit.is_intersected = true;
-            float t1 =(-B - sqrt(discriminant)) / 2*A;
-            float t2 =(-B + sqrt(discriminant)) / 2*A;
+            float t1 =(-B - sqrt(discriminant)) / (2*A);
+            float t2 =(-B + sqrt(discriminant)) / (2*A);
             hit.t = t1 < t2 ? t1 : t2;
-            hit.material=scene.materials[sphere.material_id]; //burada key gibi veriyoruz sanırım o yüzden +1 yok
+            hit.material=scene.materials[sphere.material_id-1]; //burada key gibi veriyoruz sanırım o yüzden +1 yok
             hit.intersection_point = this->origin + d*hit.t ;
             hit.normal = hit.intersection_point - center;
         }
@@ -97,6 +99,7 @@ class Ray {
     HitRecord intersectionTriangle(Triangle const&triangle, const Scene& scene){
         HitRecord hit;
         hit.is_intersected = false;
+        hit.t=std::numeric_limits<float>::infinity();
         Vec3f a_b = scene.vertex_data[triangle.indices.v0_id -1] - scene.vertex_data[triangle.indices.v1_id -1] ;
         Vec3f a_c = scene.vertex_data[triangle.indices.v0_id -1] - scene.vertex_data[triangle.indices.v2_id -1] ;
         Vec3f a_o = scene.vertex_data[triangle.indices.v0_id] - this->origin ;
@@ -104,9 +107,10 @@ class Ray {
         float beta = determinant(a_o.x,a_o.y,a_o.z,a_c.x,a_c.y,a_c.z,this->direction.x,this->direction.y,this->direction.z) / det_A ;
         float gama = determinant(a_b.x,a_b.y,a_b.z,a_o.x,a_o.y,a_o.z,this->direction.x,this->direction.y,this->direction.z) / det_A ;
         float t = determinant(a_b.x,a_b.y,a_b.z,a_c.x,a_c.y,a_c.z,a_o.x,a_o.y,a_o.z) / det_A ;
+        if(det_A==0) return hit;
         if (beta+gama <= 1 && 0 <= beta && 0 <= gama && t>0){ //tmin<=t<=tmax ???
             hit.is_intersected = true;
-            hit.material = scene.materials[triangle.material_id];
+            hit.material = scene.materials[triangle.material_id-1];
             hit.t = t;
             hit.intersection_point = this->origin + (this->direction)*(hit.t) ;
             hit.normal = cross(scene.vertex_data[triangle.indices.v2_id -1] - scene.vertex_data[triangle.indices.v1_id -1] ,a_b);
@@ -118,7 +122,7 @@ class Ray {
         HitRecord hit;
         HitRecord current_hit;
         hit.is_intersected = false;
-        hit.t=0;
+        hit.t=std::numeric_limits<float>::infinity();
         Triangle mesh_triangle;
 
         for(int i = 0; i<mesh.faces.size(); i++){
@@ -135,7 +139,7 @@ class Ray {
         HitRecord hit;
         HitRecord current_hit;
         hit.is_intersected = false;
-        hit.t=0;
+        hit.t=std::numeric_limits<float>::infinity();
         for(int i=0; i< scene.spheres.size() ; i++){
             current_hit =intersectionSphere(scene.spheres[i],scene);
             if(current_hit.is_intersected==true) {
@@ -163,31 +167,97 @@ class Ray {
  
 };
 
+float calculateDistance(Vec3f a){
+    return sqrt(pow(a.x,2)+pow(a.y,2)+pow(a.z,2));
+}
+
+Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene);
+Vec3f compute_color(Ray ray,int depth, Scene& scene);
+
 bool inShadow(Vec3f intersection_point, PointLight I, const Scene& scene){
-        Ray ray= Ray(I.position, intersection_point - I.position); //point lighttan intersection pointa giden ray
+
+        Vec3f shadowRayDir = normalize(intersection_point - I.position);
+        Ray shadowRay = Ray((I.position + shadowRayDir*0.0001),shadowRayDir);
+        float objToLightDistance, objToObjDistance;
+        objToLightDistance = calculateDistance(intersection_point-I.position);
         HitRecord hit;
         hit.is_intersected = false;
-        for(int i=0; i< scene.spheres.size() ; i++){
-            hit=ray.intersectionSphere(scene.spheres[i],scene);
-            if(hit.is_intersected==true) {
-                return true;
-            } 
+
+        for(int i=0; i<scene.spheres.size(); i++){
+
+            hit=shadowRay.intersectionSphere(scene.spheres[i],scene);
+
+            if(hit.is_intersected && calculateDistance(hit.intersection_point-intersection_point) < objToLightDistance) return true;
+            
         }
 
-        for(int i=0; i< scene.triangles.size() ; i++){
-            hit =ray.intersectionTriangle(scene.triangles[i],scene);
-            if(hit.is_intersected==true) {
-                return true;
-            } 
-        }
+        for(int i=0; i< scene.triangles.size(); i++){
 
-       for(int i=0; i< scene.meshes.size() ; i++){
-            hit =ray.intersectionMesh(scene.meshes[i],scene);
-            if(hit.is_intersected==true) {
-                return true;
-            } 
-        }
+            hit=shadowRay.intersectionTriangle(scene.triangles[i],scene);
+
+            if(hit.is_intersected && calculateDistance(hit.intersection_point-intersection_point) < objToLightDistance) return true;
+            
+            }
+
+        for(int i=0; i<scene.meshes.size(); i++){
+
+            hit =shadowRay.intersectionMesh(scene.meshes[i],scene);
+
+            if(hit.is_intersected && calculateDistance(hit.intersection_point-intersection_point) < objToLightDistance) return true;        }
+
         return false;
+}
+Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene){
+    Vec3f color;
+    //ambient contribution
+    color.x=scene.ambient_light.x * hit.material.ambient.x;
+    color.y=scene.ambient_light.y * hit.material.ambient.y;
+    color.z=scene.ambient_light.z * hit.material.ambient.z;
+
+    //Doing the above is mathematically correct, but if you then try to raytrace from that ray, you may hit the same object you are reflecting off.
+    // One way to fight that problem is to push the ray positin a small amount away from the surface to make sure it misses it. 
+    //You can do that for example like this: ReflectRayLocation = ReflectRayLocation + ReflectRayDirection * 0.01
+
+    if(hit.material.is_mirror){ //reflectance bak doğru hesaplanmış mı diye
+        Vec3f reflection_ray_direction = ray.getDirection() + hit.normal*(2*dot(ray.getDirection(),hit.normal));
+        Ray reflection_ray = Ray(hit.intersection_point + reflection_ray_direction * 0.01 , reflection_ray_direction);
+        Vec3f computed_color = compute_color(reflection_ray, depth+1,scene);
+        color.x += computed_color.x * hit.material.mirror.x ;
+        color.y += computed_color.y * hit.material.mirror.y ;
+        color.z += computed_color.z * hit.material.mirror.z ;
+    }
+
+    for(int i=0; i<scene.point_lights.size(); i++){
+        if(!inShadow(hit.intersection_point,scene.point_lights[i],scene)){
+
+                Vec3f objToLight = normalize(scene.point_lights[i].position-hit.intersection_point);
+                float dotProduct = dot(objToLight, normalize(hit.normal));
+                float clampedDotProduct = (dotProduct > 0) ? dotProduct : 0;
+                //float clampedDotProduct = max(0,dot(objToLight,normalize(hit.normal)));
+                float diffuseRed = scene.point_lights[i].intensity.x * clampedDotProduct * hit.material.diffuse.x;
+                float diffuseGreen = scene.point_lights[i].intensity.y * clampedDotProduct * hit.material.diffuse.y;
+                float diffuseBlue = scene.point_lights[i].intensity.z * clampedDotProduct * hit.material.diffuse.z;
+                color.x+=diffuseRed;
+                color.y+=diffuseGreen;
+                color.z+=diffuseBlue;
+
+                Vec3f viewDirection = ray.getDirection() * (-1);
+                Vec3f halfwayVector = normalize(objToLight + viewDirection);
+                float dotProduct2 = dot(halfwayVector, viewDirection);
+                float clampedDotProduct2 = (dotProduct2 > 0) ? dotProduct2 : 0;
+                float specularRed = pow(clampedDotProduct, hit.material.specular.x);
+                float specularGreen = pow(clampedDotProduct, hit.material.specular.y);
+                float specularBlue = pow(clampedDotProduct, hit.material.specular.z);
+                color.x+=specularRed;
+                color.y+=specularGreen;
+                color.z+=specularBlue;
+
+        }
+            
+    }
+
+    return color;
+ 
 }
 
 Vec3f compute_color(Ray ray,int depth, Scene& scene){ //en son mainin içinde Vec3i'ye çevirip clample
@@ -196,7 +266,8 @@ Vec3f compute_color(Ray ray,int depth, Scene& scene){ //en son mainin içinde Ve
         }
 
         if(ray.find_closest_hit(scene).is_intersected == true){
-            return applyShading(ray,depth,ray.find_closest_hit(scene));
+            //return {255,255,255};
+            return applyShading(ray,depth,ray.find_closest_hit(scene),scene);
         }
 
         else if(depth==0) { //Vec3i Vec3f'ye dönüştürüldü. Umarım loss olmamıştır.
@@ -210,32 +281,7 @@ Vec3f compute_color(Ray ray,int depth, Scene& scene){ //en son mainin içinde Ve
         else return {0,0,0};
 }
 
-Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene){
-    Vec3f color= {0,0,0};
-    //ambient contribution
-    color.x = (scene.ambient_light).x * (hit.material.ambient).x;
-    color.y = (scene.ambient_light).y * (hit.material.ambient).y;
-    color.z = (scene.ambient_light).z * (hit.material.ambient).z;
-    
 
-    //Doing the above is mathematically correct, but if you then try to raytrace from that ray, you may hit the same object you are reflecting off.
-    // One way to fight that problem is to push the ray positin a small amount away from the surface to make sure it misses it. 
-    //You can do that for example like this: ReflectRayLocation = ReflectRayLocation + ReflectRayDirection * 0.01
-
-    if(hit.material.is_mirror){ //reflectance bak doğru hesaplanmış mı diye
-        Ray reflection_ray = Ray(hit.intersection_point, ray.getDirection() - hit.normal*(2*dot(ray.getDirection(),hit.normal)));
-        Vec3f computed_color = compute_color(reflection_ray, depth+1,scene);
-        color.x += computed_color.x * hit.material.mirror.x ;
-        color.y += computed_color.y * hit.material.mirror.y ;
-        color.z += computed_color.z * hit.material.mirror.z ;
-    }
-
-    for(int i=0; i<scene.point_lights.size(); i++){
-        if(!inShadow(hit.intersection_point,scene.point_lights[i],scene)){
-            //diffuse and specular contribution
-        }
-    }
-}
 
 
     //compute_color(Ray r, int depth) içinde,, o rayi scenedeki tüm objelerle kesiştirmeye çalışacağız 
@@ -254,12 +300,11 @@ Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene){
 
 
 
-int main(int argc, char* argv[])
+int main()
 {
     // Sample usage for reading an XML scene file
     parser::Scene scene;
-
-    scene.loadFromXml(argv[1]);
+    scene.loadFromXml("simple.xml");
 
     // The code below creates a test pattern and writes
     // it to a PPM file to demonstrate the usage of the
@@ -280,8 +325,8 @@ int main(int argc, char* argv[])
         {   0,   0,   0 },  // Black
     };
 
-    int width = 640, height = 480;
-    int columnWidth = width / 8;
+    int width = scene.cameras[0].image_width, height = scene.cameras[0].image_height;
+    //int columnWidth = width / 8;
 
     unsigned char* image = new unsigned char [width * height * 3];
 
@@ -289,14 +334,20 @@ int main(int argc, char* argv[])
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
-        {
-            int colIdx = x / columnWidth;
-            image[i++] = BAR_COLOR[colIdx][0];
-            image[i++] = BAR_COLOR[colIdx][1];
-            image[i++] = BAR_COLOR[colIdx][2];
+        {   
+            Ray ray = Ray::cameraToPixel(scene.cameras[0],x,y);
+            //int colIdx = x / columnWidth; 
+            Vec3f color = compute_color(ray,0,scene);
+    int roundedX = static_cast<int>(std::round(color.x));
+    int roundedY = static_cast<int>(std::round(color.y));
+    int roundedZ = static_cast<int>(std::round(color.z));
+            //if(roundedX!=0) printf("color: %d %d %d\n",roundedX,roundedY,roundedZ);
+            image[i++] = roundedX > 255 ? 255 : roundedX;
+            image[i++] = roundedY > 255 ? 255 : roundedY;
+            image[i++] = roundedZ > 255 ? 255 : roundedZ;
         }
     }
 
-    write_ppm("test.ppm", image, width, height);
+    write_ppm("test2.ppm", image, width, height);
 
 }
