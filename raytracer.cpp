@@ -102,7 +102,7 @@ class Ray {
         hit.t=std::numeric_limits<float>::infinity();
         Vec3f a_b = scene.vertex_data[triangle.indices.v0_id -1] - scene.vertex_data[triangle.indices.v1_id -1] ;
         Vec3f a_c = scene.vertex_data[triangle.indices.v0_id -1] - scene.vertex_data[triangle.indices.v2_id -1] ;
-        Vec3f a_o = scene.vertex_data[triangle.indices.v0_id] - this->origin ;
+        Vec3f a_o = scene.vertex_data[triangle.indices.v0_id -1] - this->origin ;
         float det_A = determinant(a_b.x,a_b.y,a_b.z,a_c.x,a_c.y,a_c.z,this->direction.x,this->direction.y,this->direction.z);
         float beta = determinant(a_o.x,a_o.y,a_o.z,a_c.x,a_c.y,a_c.z,this->direction.x,this->direction.y,this->direction.z) / det_A ;
         float gama = determinant(a_b.x,a_b.y,a_b.z,a_o.x,a_o.y,a_o.z,this->direction.x,this->direction.y,this->direction.z) / det_A ;
