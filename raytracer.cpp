@@ -1,7 +1,7 @@
 #include <iostream>
 #include "parser.h"
 #include "ppm.h"
-#include <cmath> sqrt, max
+#include <cmath>
 using namespace parser;
 
 typedef unsigned char RGB[3];
@@ -92,7 +92,7 @@ class Ray {
             hit.t = t1 < t2 ? t1 : t2;
             hit.material=scene.materials[sphere.material_id-1]; //burada key gibi veriyoruz sanırım o yüzden +1 yok
             hit.intersection_point = this->origin + d*hit.t ;
-            hit.normal = hit.intersection_point - center;
+            hit.normal = normalize(hit.intersection_point - center);
         }
         return hit;
     }
@@ -114,7 +114,7 @@ class Ray {
             hit.material = scene.materials[triangle.material_id-1];
             hit.t = t;
             hit.intersection_point = this->origin + (this->direction)*(hit.t) ;
-            hit.normal = cross(scene.vertex_data[triangle.indices.v2_id -1] - scene.vertex_data[triangle.indices.v1_id -1] ,a_b);
+            hit.normal = normalize(cross(scene.vertex_data[triangle.indices.v2_id -1] - scene.vertex_data[triangle.indices.v1_id -1] ,a_b));
         }
         return hit;
     }
@@ -175,10 +175,10 @@ float calculateDistance(Vec3f a, Vec3f b){
 Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene);
 Vec3f compute_color(Ray ray,int depth, Scene& scene);
 
-bool inShadow(Vec3f intersection_point, PointLight I, const Scene& scene){ //kendisiyle çakışması ve arasında olmasının garantisi
+bool inShadow(Vec3f intersection_point, PointLight I, Scene& scene){ //kendisiyle çakışması ve arasında olmasının garantisi
         //printf("burası");
         Vec3f shadowRayDir = normalize(I.position - intersection_point);
-        Ray shadowRay = Ray((intersection_point),shadowRayDir); //offseti sildim
+        Ray shadowRay = Ray((intersection_point+ shadowRayDir * (scene.shadow_ray_epsilon)),shadowRayDir); //offseti sildim
         float objToLightDistance, objToObjDistance;
         objToLightDistance = calculateDistance(intersection_point,I.position);
         HitRecord hit;
@@ -188,10 +188,10 @@ bool inShadow(Vec3f intersection_point, PointLight I, const Scene& scene){ //ken
 
             hit=shadowRay.intersectionSphere(scene.spheres[i],scene);
 
-            if(hit.is_intersected && calculateDistance(hit.intersection_point,I.position) < objToLightDistance
-            && calculateDistance(hit.intersection_point,intersection_point)>0.001
+            if(hit.is_intersected && calculateDistance(hit.intersection_point,intersection_point)>scene.shadow_ray_epsilon
+            && calculateDistance(hit.intersection_point,I.position) < objToLightDistance
             &&calculateDistance(hit.intersection_point,intersection_point) < objToLightDistance ) {
-                return true;}
+            return true;}
             
         }
 
@@ -199,49 +199,57 @@ bool inShadow(Vec3f intersection_point, PointLight I, const Scene& scene){ //ken
 
             hit=shadowRay.intersectionTriangle(scene.triangles[i],scene);
 
-            if(hit.is_intersected && calculateDistance(hit.intersection_point,I.position) < objToLightDistance
-            && calculateDistance(hit.intersection_point,intersection_point)>0.001
+            if(hit.is_intersected && calculateDistance(hit.intersection_point,intersection_point)>scene.shadow_ray_epsilon
+            &&calculateDistance(hit.intersection_point,I.position) < objToLightDistance
             &&calculateDistance(hit.intersection_point,intersection_point) < objToLightDistance ) {
-                return true;}
+            return true;}
             
-            }
+        }
 
         for(int i=0; i<scene.meshes.size(); i++){
 
             hit =shadowRay.intersectionMesh(scene.meshes[i],scene);
 
-                       if(hit.is_intersected && calculateDistance(hit.intersection_point,I.position) < objToLightDistance
-            && calculateDistance(hit.intersection_point,intersection_point)>0.001
+            if(hit.is_intersected && calculateDistance(hit.intersection_point,intersection_point)>scene.shadow_ray_epsilon
+            && calculateDistance(hit.intersection_point,I.position) < objToLightDistance
             &&calculateDistance(hit.intersection_point,intersection_point) < objToLightDistance ) {
-                return true;}
+            return true;}
         }
+
         return false;
 }
 
 Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene){
     Vec3f color= {0,0,0};
     //ambient contribution
-    color.x = (scene.ambient_light).x * (hit.material.ambient).x;
-    color.y = (scene.ambient_light).y * (hit.material.ambient).y;
-    color.z = (scene.ambient_light).z * (hit.material.ambient).z;
+    color.x += (scene.ambient_light).x * (hit.material.ambient).x;
+    color.y += (scene.ambient_light).y * (hit.material.ambient).y;
+    color.z += (scene.ambient_light).z * (hit.material.ambient).z;
     
     //Doing the above is mathematically correct, but if you then try to raytrace from that ray, you may hit the same object you are reflecting off.
     // One way to fight that problem is to push the ray positin a small amount away from the surface to make sure it misses it. 
     //You can do that for example like this: ReflectRayLocation = ReflectRayLocation + ReflectRayDirection * 0.01
 
-    if(hit.material.is_mirror){ //reflectance bak doğru hesaplanmış mı diye
-        Ray reflection_ray = Ray(hit.intersection_point, ray.getDirection() - hit.normal*(2*dot(ray.getDirection(),hit.normal)));
-        Vec3f computed_color = compute_color(reflection_ray, depth+1,scene);
+    if(hit.material.is_mirror && depth <= scene.max_recursion_depth){ //reflectance bak doğru hesaplanmış mı diye
+        Vec3f reflection_ray_direction = ray.getDirection() *(-1) + hit.normal*(2*dot(ray.getDirection(),hit.normal));
+        reflection_ray_direction = normalize(reflection_ray_direction);
+        Ray reflection_ray = Ray(hit.intersection_point + reflection_ray_direction * scene.shadow_ray_epsilon , reflection_ray_direction);
+
+        Vec3f computed_color={0,0,0};
+         //gereksiz gibi constructorda vardı zaten
+        computed_color = computed_color + compute_color(reflection_ray , depth+1,scene);
         color.x += computed_color.x * hit.material.mirror.x ;
         color.y += computed_color.y * hit.material.mirror.y ;
         color.z += computed_color.z * hit.material.mirror.z ;
+        color.x = color.x > 255 ? 255 : color.x;
+        color.y = color.y >255 ? 255 :color.y;
+        color.z = color.z > 255 ? 255 : color.z;
     }
     
 
     for(int i=0; i<scene.point_lights.size(); i++){
 
         if(!inShadow(hit.intersection_point,scene.point_lights[i],scene)){
-                //printf("here");
                 Vec3f objToLight = normalize(scene.point_lights[i].position-hit.intersection_point);
                 float clampedDotProduct = fmax(0,dot(objToLight,normalize(hit.normal)));
                 float diffuseRed = scene.point_lights[i].intensity.x * clampedDotProduct * hit.material.diffuse.x / pow(calculateDistance(scene.point_lights[i].position,hit.intersection_point),2);
@@ -253,7 +261,7 @@ Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene){
 
                 Vec3f viewDirection =  ray.getDirection() * (-1.0);
                 Vec3f halfwayVector = normalize(objToLight + viewDirection);
-                float clampedDotProduct2 = fmax(0, dot(halfwayVector, normalize(hit.normal)));
+                float clampedDotProduct2 = fmax(0, dot(halfwayVector, hit.normal)); //normalize et çok önemli
                 float specularRed = hit.material.specular.x * pow(clampedDotProduct2, hit.material.phong_exponent)* scene.point_lights[i].intensity.x  / pow(calculateDistance(scene.point_lights[i].position,hit.intersection_point),2);
                 float specularGreen = hit.material.specular.y * pow(clampedDotProduct2, hit.material.phong_exponent) * scene.point_lights[i].intensity.y  / pow(calculateDistance(scene.point_lights[i].position,hit.intersection_point),2);
                 float specularBlue = hit.material.specular.z * pow(clampedDotProduct2, hit.material.phong_exponent) * scene.point_lights[i].intensity.z / pow(calculateDistance(scene.point_lights[i].position,hit.intersection_point),2);
@@ -262,11 +270,9 @@ Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene){
                 color.z+=specularBlue;
 
         }
-        else printf("inshadow doğru");
         
 
     }
-    //printf("%f %f %f\n",color.x,color.y,color.z);
     return color;
 }
 
@@ -277,7 +283,6 @@ Vec3f compute_color(Ray ray,int depth, Scene& scene){ //en son mainin içinde Ve
         }
 
         if(ray.find_closest_hit(scene).is_intersected == true){
-            //return {255,255,255};
             return applyShading(ray,depth,ray.find_closest_hit(scene),scene);
         }
 
@@ -315,29 +320,11 @@ int main()
 {
     // Sample usage for reading an XML scene file
     parser::Scene scene;
-    scene.loadFromXml("simple.xml");
+    scene.loadFromXml("inputs/monkey.xml");
 
-    // The code below creates a test pattern and writes
-    // it to a PPM file to demonstrate the usage of the
-    // ppm_write function.
-    //
-    // Normally, you would be running your ray tracing
-    // code here to produce the desired image.
 
-    const RGB BAR_COLOR[8] =
-    {
-        { 255, 255, 255 },  // 100% White
-        { 255, 255,   0 },  // Yellow
-        {   0, 255, 255 },  // Cyan
-        {   0, 255,   0 },  // Green
-        { 255,   0, 255 },  // Magenta
-        { 255,   0,   0 },  // Red
-        {   0,   0, 255 },  // Blue
-        {   0,   0,   0 },  // Black
-    };
-
-    int width = scene.cameras[0].image_width, height = scene.cameras[0].image_height;
-    //int columnWidth = width / 8;
+    int width = scene.cameras[0].image_width;
+    int height = scene.cameras[0].image_height;
 
     unsigned char* image = new unsigned char [width * height * 3];
 
@@ -347,18 +334,18 @@ int main()
         for (int x = 0; x < width; ++x)
         {   
             Ray ray = Ray::cameraToPixel(scene.cameras[0],x,y);
-            //int colIdx = x / columnWidth; 
             Vec3f color = compute_color(ray,0,scene);
-    int roundedX = static_cast<int>(std::round(color.x));
-    int roundedY = static_cast<int>(std::round(color.y));
-    int roundedZ = static_cast<int>(std::round(color.z));
-            //if(roundedX!=0) printf("color: %d %d %d\n",roundedX,roundedY,roundedZ);
+            
+            int roundedX = static_cast<int>(std::round(color.x));
+            int roundedY = static_cast<int>(std::round(color.y));
+            int roundedZ = static_cast<int>(std::round(color.z));
+
             image[i++] = roundedX > 255 ? 255 : roundedX;
             image[i++] = roundedY > 255 ? 255 : roundedY;
             image[i++] = roundedZ > 255 ? 255 : roundedZ;
         }
     }
 
-    write_ppm("simple.ppm", image, width, height);
+    write_ppm("monkey.ppm", image, width, height);
 
 }
