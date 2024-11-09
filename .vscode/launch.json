@@ -9,7 +9,7 @@
                 "name": "Debug",
                 "type": "cppdbg",
                 "request": "launch",
-                "program": "C:/Users/bahar/Desktop/ODTÜ/ceng477- computer graphics/code_template/ray.exe", // Path to your compiled executable
+                "program": "C:/Users/bahar/Desktop/ODTÜ/ceng477- computer graphics/code_template/raytracer.exe", // Path to your compiled executable
                 "args": [], // Command line arguments if needed
                 "stopAtEntry": false,
                 "cwd": "C:/Users/bahar/Desktop/ODTÜ/ceng477- computer graphics/code_template", // Working directory
