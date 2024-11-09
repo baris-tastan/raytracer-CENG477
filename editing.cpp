@@ -258,11 +258,7 @@ Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene, Camera& came
         color.x += computed_color.x * hit.material.mirror.x ;
         color.y += computed_color.y * hit.material.mirror.y ;
         color.z += computed_color.z * hit.material.mirror.z ;
-        color.x = color.x > 255 ? 255 : color.x;
-        color.y = color.y >255 ? 255 :color.y;
-        color.z = color.z > 255 ? 255 : color.z;
     }
-    
 
     for(int i=0; i<scene.point_lights.size(); i++){
         if(!inShadow(hit.intersection_point,scene.point_lights[i],scene,camera,hit.normal)){
