@@ -61,7 +61,7 @@ class Ray {
     //The cameraToPixel method is static because it creates a Ray without needing an instance of the Ray class. 
     //It uses the camera's parameters and pixel coordinates to calculate the origin and direction of the ray.
     Vec3f getDirection() const { return direction; }
-    static Ray cameraToPixel(const Camera &camera, int pixel_x, int pixel_y) { //constların yeri hkk bak???
+    static Ray cameraToPixel(const Camera &camera, int pixel_x, int pixel_y) {
         float l = camera.near_plane.x ;
         float r = camera.near_plane.y;
         float b =camera.near_plane.z;
@@ -89,7 +89,7 @@ class Ray {
         float B = dot(d,o_c)*2;
         float C = dot(o_c,o_c) - (sphere.radius)*(sphere.radius);
         float discriminant = (B*B - 4*A*C);
-        if(discriminant>=0) {
+        if(discriminant>=0) { //büyüktür or eşittir?
             
             float t1 =(-B - sqrt(discriminant)) / (2*A);
             float t2 =(-B + sqrt(discriminant)) / (2*A);
@@ -111,7 +111,7 @@ class Ray {
         Vec3f V1 = scene.vertex_data[triangle.indices.v1_id -1];
         Vec3f a_b = scene.vertex_data[triangle.indices.v0_id -1] - V1 ;
         hit.normal = cross(scene.vertex_data[triangle.indices.v2_id -1] - V1 ,a_b);
-        if(isShadow==false && dot(hit.normal,camera.gaze)>=0) return hit;
+        if(isShadow==false && dot(hit.normal,camera.gaze)>0) return hit;
         float dirX = this->direction.x;
         float dirY = this->direction.y;
         float dirZ = this->direction.z;
@@ -192,9 +192,9 @@ float calculateDistance2(Vec3f a, Vec3f b){
 Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene, Camera&camera);
 Vec3f compute_color(Ray ray,int depth, Scene& scene,Camera&camera);
 
-bool inShadow(Vec3f intersection_point, PointLight I, Scene& scene,Camera&camera,Vec3f normal){ //kendisiyle çakışması ve arasında olmasının garantisi
+bool inShadow(Vec3f intersection_point, PointLight I, Scene& scene,Camera&camera,Vec3f normal){ //avoid self intersection and be sure intersection object is between light and the main point
         Vec3f shadowRayDir = normalize(I.position - intersection_point);
-        Ray shadowRay = Ray((intersection_point+ normal * (scene.shadow_ray_epsilon)),shadowRayDir,true); //offseti sildim
+        Ray shadowRay = Ray((intersection_point + normal*scene.shadow_ray_epsilon),shadowRayDir,true); //offset
         float objToLightDistance, objToObjDistance;
         objToLightDistance = calculateDistance2(intersection_point,I.position);
         HitRecord hit;
@@ -243,18 +243,13 @@ Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene, Camera& came
     color.y += (scene.ambient_light).y * (hit.material.ambient).y;
     color.z += (scene.ambient_light).z * (hit.material.ambient).z;
     
-    //Doing the above is mathematically correct, but if you then try to raytrace from that ray, you may hit the same object you are reflecting off.
-    // One way to fight that problem is to push the ray positin a small amount away from the surface to make sure it misses it. 
-    //You can do that for example like this: ReflectRayLocation = ReflectRayLocation + ReflectRayDirection * 0.01
-
     Vec3f viewDirection =  ray.getDirection() * (-1.0);
     if(hit.material.is_mirror){
         float cos_theta=dot(viewDirection,hit.normal);
         Vec3f reflection_ray_direction = viewDirection *(-1.0f) + hit.normal*(cos_theta*(2.0f));
-        Ray reflection_ray = Ray(hit.intersection_point + reflection_ray_direction * scene.shadow_ray_epsilon , reflection_ray_direction,true);
+        Ray reflection_ray = Ray(hit.intersection_point + reflection_ray_direction * scene.shadow_ray_epsilon , reflection_ray_direction,true); //dikkat değişti hitnormal
 
         Vec3f computed_color=compute_color(reflection_ray , depth+1,scene,camera);
-        //printf("%f %f %f \n",computed_color.x,computed_color.y,computed_color.z);
         color.x += computed_color.x * hit.material.mirror.x ;
         color.y += computed_color.y * hit.material.mirror.y ;
         color.z += computed_color.z * hit.material.mirror.z ;
@@ -277,7 +272,7 @@ Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene, Camera& came
                 
                 Vec3f viewDirection =  ray.getDirection() * (-1.0);
                 Vec3f halfwayVector = normalize(objToLight + viewDirection);
-                float clampedDotProduct2 = fmax(0, dot(halfwayVector, hit.normal)); //normalize et çok önemli
+                float clampedDotProduct2 = fmax(0, dot(halfwayVector, hit.normal));
                 float phongPart = pow(clampedDotProduct2, hit.material.phong_exponent);
                 float specularRed = hit.material.specular.x * phongPart* lightIntensity.x  /d_square;
                 float specularGreen = hit.material.specular.y * phongPart * lightIntensity.y  / d_square;
@@ -294,7 +289,7 @@ Vec3f applyShading(Ray ray, int depth, HitRecord hit, Scene& scene, Camera& came
 }
 
 
-Vec3f compute_color(Ray ray,int depth, Scene& scene,Camera&camera){ //en son mainin içinde Vec3i'ye çevirip clample
+Vec3f compute_color(Ray ray,int depth, Scene& scene,Camera&camera){
         if(depth > scene.max_recursion_depth){
             return {0,0,0};
         }
@@ -303,7 +298,7 @@ Vec3f compute_color(Ray ray,int depth, Scene& scene,Camera&camera){ //en son mai
             return applyShading(ray,depth,ray.find_closest_hit(scene,camera),scene,camera);
         }
 
-        else if(depth==0) { //Vec3i Vec3f'ye dönüştürüldü. Umarım loss olmamıştır.
+        else if(depth==0) {
             Vec3f background;
             background.x = scene.background_color.x;
             background.y = scene.background_color.y;
