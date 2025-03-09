@@ -33,3 +33,6 @@ $ ./raytracer scene.xml
 5. **Reflection Handling**: Recursively traces reflected rays for mirror-like materials.
 6. **Color Clamping**: Ensures final RGB values remain within [0, 255] range.
 7. **Image Output**: Stores the rendered image in PPM format.
+
+8. ![](killeroo.ppm)
+
