@@ -34,5 +34,5 @@ $ ./raytracer scene.xml
 6. **Color Clamping**: Ensures final RGB values remain within [0, 255] range.
 7. **Image Output**: Stores the rendered image in PPM format.
 
-8. ![](killeroo.ppm)
+[](killeroo.ppm)
 
