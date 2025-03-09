@@ -1,4 +1,4 @@
-# Ray Tracer - CENG 477 Assignment 1
+# Ray Tracer 
 
 ## Introduction
 This project is a basic ray tracer developed for the **Middle East Technical University, Department of Computer Engineering, CENG 477 - Introduction to Computer Graphics (Fall 2024-2025)** course. The goal of this project is to simulate light propagation and object interaction using ray tracing techniques, producing high-quality rendered images.
